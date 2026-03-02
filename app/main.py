@@ -307,10 +307,28 @@ def test_feishu():
         return {"ok": False, "step": "bitable", "error": err[:500], "hint": hint}
 
 
+# 用于调试：记录最近一次 webhook 请求（不含敏感内容）
+_webhook_last: dict = {}
+
+
+@app.get("/webhook/feishu/debug")
+def webhook_debug():
+    """查看是否收到飞书回调，便于排查"""
+    return _webhook_last if _webhook_last else {"message": "尚未收到任何飞书回调请求"}
+
+
 @app.post("/webhook/feishu")
 async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
     """飞书事件回调：立即返回 200，后台异步处理"""
+    import time
     body = await request.json()
+    _webhook_last.clear()
+    _webhook_last["time"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    _webhook_last["type"] = body.get("type", "")
+    ev = body.get("event", {})
+    _webhook_last["event_type"] = ev.get("type", "")
+    _webhook_last["msg_type"] = ev.get("message", {}).get("message_type", "")
+    _webhook_last["chat_id_preview"] = (ev.get("message", {}).get("chat_id", ""))[:20] + "..."
 
     parsed = parse_event(body)
     if parsed is None:
@@ -325,6 +343,15 @@ async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
     content = parsed.get("content", "")
 
     if not chat_id or not msg_id:
+        return JSONResponse(content={})
+
+    # 同步回复「ping」「测试」，用于快速验证通道是否打通
+    if msg_type == "text" and str(content).strip() in ("ping", "测试", "pong"):
+        try:
+            from app.feishu.bot import reply_message
+            reply_message(chat_id, msg_id, "ReadAfter2.0 已收到～ ✅")
+        except Exception as e:
+            _webhook_last["reply_error"] = str(e)
         return JSONResponse(content={})
 
     if msg_type == "url":
