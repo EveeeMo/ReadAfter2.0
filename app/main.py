@@ -329,7 +329,9 @@ async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
     _webhook_last["event_type"] = ev.get("type", "")
     _webhook_last["msg_type"] = ev.get("message", {}).get("message_type", "")
     _webhook_last["chat_id_preview"] = (ev.get("message", {}).get("chat_id", ""))[:20] + "..."
-    _webhook_last["adam_resp"] = 'we got it'
+    # v2 的 event_type 在 header 中
+    if not _webhook_last["event_type"]:
+        _webhook_last["event_type"] = body.get("header", {}).get("event_type", "")
 
     parsed = parse_event(body)
     if parsed is None:

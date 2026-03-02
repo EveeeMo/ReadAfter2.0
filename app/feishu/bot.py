@@ -9,6 +9,7 @@ from app.feishu.auth import get_tenant_access_token
 def parse_event(body: dict) -> dict | None:
     """
     解析飞书事件回调。
+    支持 Schema v1（type=event_callback）和 v2（schema=2.0）。
     返回: {"type": "url"|"image"|"text", "content": ..., "chat_id": ..., "msg_id": ..., "user_id": ...}
     或 None 表示无需处理（如校验请求）。
     """
@@ -16,10 +17,14 @@ def parse_event(body: dict) -> dict | None:
     if body.get("type") == "url_verification":
         return {"type": "url_verification", "challenge": body.get("challenge", "")}
 
-    if body.get("type") != "event_callback":
+    # 支持 v1 (type=event_callback) 和 v2 (schema=2.0)
+    if body.get("type") == "event_callback":
+        event = body.get("event", {})
+    elif body.get("schema") == "2.0" and body.get("event"):
+        event = body.get("event", {})
+    else:
         return None
 
-    event = body.get("event", {})
     msg_type = event.get("message", {}).get("message_type")
     chat_id = event.get("message", {}).get("chat_id", "")
     msg_id = event.get("message", {}).get("message_id", "")
