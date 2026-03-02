@@ -1,0 +1,11 @@
+{
+  "repo_url": "https://github.com/YOUR_USERNAME/ReadAfter2.0",
+  "service_name": "readafter2",
+  "branch": "main",
+  "env_vars": {
+    "FEISHU_APP_ID": "你的飞书 App ID",
+    "FEISHU_APP_SECRET": "你的飞书 App Secret",
+    "FEISHU_BITABLE_APP_TOKEN": "多维表格 app_token",
+    "FEISHU_BITABLE_TABLE_ID": "多维表格 table_id"
+  }
+}
