@@ -25,10 +25,19 @@ def parse_event(body: dict) -> dict | None:
     else:
         return None
 
-    msg_type = event.get("message", {}).get("message_type")
-    chat_id = event.get("message", {}).get("chat_id", "")
-    msg_id = event.get("message", {}).get("message_id", "")
-    user_id = event.get("sender", {}).get("sender_id", {}).get("user_id", "")
+    msg_obj = event.get("message", {})
+    msg_type = msg_obj.get("message_type")
+    chat_id = msg_obj.get("chat_id", "")
+    msg_id = msg_obj.get("message_id", "") or msg_obj.get("message_id_v2", "")
+    chat_type = msg_obj.get("chat_type", "")
+    sender_id = event.get("sender", {}).get("sender_id", {})
+    # sender_id 可能是对象 {open_id, user_id} 或直接是 id 字符串
+    if isinstance(sender_id, dict):
+        user_id = sender_id.get("user_id", "")
+        open_id = sender_id.get("open_id", "")
+    else:
+        user_id = str(sender_id or "")
+        open_id = user_id if (user_id.startswith("ou_") or user_id.startswith("oc_")) else ""
 
     if not msg_type:
         return None
@@ -51,17 +60,16 @@ def parse_event(body: dict) -> dict | None:
             first_start = text.find(urls_found[0])
             extra = re.sub(r"\s+", " ", text[:first_start].strip())[:500] if first_start > 0 else ""
             if len(urls_found) == 1:
-                return {"type": "url", "content": urls_found[0], "extra": extra, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id}
-            return {"type": "urls", "content": urls_found, "extra": extra, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id}
-        # 否则视为提问
-        return {"type": "text", "content": text, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id}
+                return {"type": "url", "content": urls_found[0], "extra": extra, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id, "chat_type": chat_type, "open_id": open_id}
+            return {"type": "urls", "content": urls_found, "extra": extra, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id, "chat_type": chat_type, "open_id": open_id}
+        return {"type": "text", "content": text, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id, "chat_type": chat_type, "open_id": open_id}
 
     # 图片消息
     if msg_type == "image":
         # 飞书图片在 content 的 image_key 中
         image_key = content.get("image_key", "")
         if image_key:
-            return {"type": "image", "content": image_key, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id}
+            return {"type": "image", "content": image_key, "chat_id": chat_id, "msg_id": msg_id, "user_id": user_id, "chat_type": chat_type, "open_id": open_id}
         return None
 
     return None
@@ -92,12 +100,19 @@ def get_image_for_vision(image_key: str) -> str:
     return f"data:{content_type.split(';')[0]};base64,{b64}"
 
 
-def reply_message(chat_id: str, msg_id: str, text: str) -> None:
-    """回复消息到群聊/私聊"""
+def reply_message(chat_id: str, msg_id: str, text: str, chat_type: str = "", open_id: str = "") -> None:
+    """回复消息到群聊/私聊。私聊(p2p)需用 open_id，群聊用 chat_id"""
     token = get_tenant_access_token()
+    # 私聊必须用 open_id，否则发不出去
+    if chat_type == "p2p" and open_id:
+        rid_type, rid = "open_id", open_id
+    else:
+        rid_type, rid = "chat_id", chat_id
+    if not rid:
+        raise ValueError("缺少 receive_id（chat_id 或 open_id）")
     resp = httpx.post(
         "https://open.feishu.cn/open-apis/im/v1/messages",
-        params={"receive_id_type": "chat_id", "receive_id": chat_id},
+        params={"receive_id_type": rid_type, "receive_id": rid},
         json={
             "msg_type": "text",
             "content": json.dumps({"text": text}),

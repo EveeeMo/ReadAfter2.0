@@ -5,21 +5,20 @@ from app.feishu.bot import get_image_for_vision, reply_message
 _SUCCESS_EMOJI = ("📚", "✨", "🎉", "📌", "✅", "💾", "🔖", "📝")
 
 
-def _success_reply(chat_id: str, msg_id: str, text: str) -> None:
-    """保存成功时回复，带俏皮表情"""
+def _success_reply(chat_id: str, msg_id: str, text: str, chat_type: str = "", open_id: str = "") -> None:
     emoji = random.choice(_SUCCESS_EMOJI)
-    reply_message(chat_id, msg_id, f"已保存～ {emoji}\n{text}")
+    reply_message(chat_id, msg_id, f"已保存～ {emoji}\n{text}", chat_type=chat_type, open_id=open_id)
 from app.feishu.bitable import add_record
 from app.services.link_parser import extract_metadata
 from app.services.image_parser import analyze_image
 from app.services.rag import search_and_answer, add_to_index
 
 
-def handle_url(chat_id: str, msg_id: str, url: str, extra: str = "") -> None:
+def handle_url(chat_id: str, msg_id: str, url: str, extra: str = "", chat_type: str = "", open_id: str = "") -> None:
     """处理链接：解析并写入飞书表格。extra 为用户在链接前粘贴的文案，用于补全标题/摘要"""
     meta = extract_metadata(url)
     if meta.get("error"):
-        reply_message(chat_id, msg_id, f"链接解析失败：{meta['error']}")
+        reply_message(chat_id, msg_id, f"链接解析失败：{meta['error']}", chat_type=chat_type, open_id=open_id)
         return
 
     title = meta.get("title", url)
@@ -46,17 +45,17 @@ def handle_url(chat_id: str, msg_id: str, url: str, extra: str = "") -> None:
         rid = rec.get("record", {}).get("record_id")
         if rid:
             add_to_index(rid, meta.get("title", ""), meta.get("full_text", "")[:8000])
-        _success_reply(chat_id, msg_id, f"已记录：{meta.get('title', url)[:50]}...")
+        _success_reply(chat_id, msg_id, f"已记录：{meta.get('title', url)[:50]}...", chat_type, open_id)
     except Exception as e:
-        reply_message(chat_id, msg_id, f"保存失败：{str(e)}")
+        reply_message(chat_id, msg_id, f"保存失败：{str(e)}", chat_type=chat_type, open_id=open_id)
 
 
-def handle_image(chat_id: str, msg_id: str, image_key: str) -> None:
+def handle_image(chat_id: str, msg_id: str, image_key: str, chat_type: str = "", open_id: str = "") -> None:
     """处理图片：识别链接并逐个解析入库；若无链接则提取视频信息并入库"""
     try:
         img_data = get_image_for_vision(image_key)
     except Exception as e:
-        reply_message(chat_id, msg_id, f"获取图片失败：{str(e)}")
+        reply_message(chat_id, msg_id, f"获取图片失败：{str(e)}", chat_type=chat_type, open_id=open_id)
         return
 
     result = analyze_image(img_data)
@@ -96,13 +95,13 @@ def handle_image(chat_id: str, msg_id: str, image_key: str) -> None:
             if rid:
                 add_to_index(rid, meta.get("title", ""), meta.get("full_text", "")[:8000])
             t = meta.get("title", fallback["title"])[:40]
-            _success_reply(chat_id, msg_id, f"已根据截图选取链接并入库：{t}...")
+            _success_reply(chat_id, msg_id, f"已根据截图选取链接并入库：{t}...", chat_type, open_id)
         except Exception as e:
-            reply_message(chat_id, msg_id, f"保存失败：{str(e)}")
+            reply_message(chat_id, msg_id, f"保存失败：{str(e)}", chat_type=chat_type, open_id=open_id)
         return
 
     if not urls:
-        reply_message(chat_id, msg_id, "未在图片中识别到链接或视频信息")
+        reply_message(chat_id, msg_id, "未在图片中识别到链接或视频信息", chat_type=chat_type, open_id=open_id)
         return
 
     done = 0
@@ -124,13 +123,13 @@ def handle_image(chat_id: str, msg_id: str, image_key: str) -> None:
             done += 1
         except Exception:
             continue
-    _success_reply(chat_id, msg_id, f"从图片识别到 {len(urls)} 个链接，已记录 {done} 条")
+    _success_reply(chat_id, msg_id, f"从图片识别到 {len(urls)} 个链接，已记录 {done} 条", chat_type, open_id)
 
 
-def handle_question(chat_id: str, msg_id: str, question: str) -> None:
+def handle_question(chat_id: str, msg_id: str, question: str, chat_type: str = "", open_id: str = "") -> None:
     """处理提问：RAG 检索并回答"""
     try:
         ans = search_and_answer(question)
-        reply_message(chat_id, msg_id, ans[:2000])
+        reply_message(chat_id, msg_id, ans[:2000], chat_type=chat_type, open_id=open_id)
     except Exception as e:
-        reply_message(chat_id, msg_id, f"回答失败：{str(e)}")
+        reply_message(chat_id, msg_id, f"回答失败：{str(e)}", chat_type=chat_type, open_id=open_id)

@@ -325,15 +325,17 @@ async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
     _webhook_last.clear()
     _webhook_last["time"] = time.strftime("%Y-%m-%d %H:%M:%S")
     _webhook_last["type"] = body.get("type", "")
+    _webhook_last["schema"] = body.get("schema", "")
+    _webhook_last["body_keys"] = list(body.keys())
     ev = body.get("event", {})
-    _webhook_last["event_type"] = ev.get("type", "")
+    _webhook_last["event_type"] = ev.get("type", "") or body.get("header", {}).get("event_type", "")
     _webhook_last["msg_type"] = ev.get("message", {}).get("message_type", "")
     _webhook_last["chat_id_preview"] = (ev.get("message", {}).get("chat_id", ""))[:20] + "..."
-    # v2 的 event_type 在 header 中
-    if not _webhook_last["event_type"]:
-        _webhook_last["event_type"] = body.get("header", {}).get("event_type", "")
+    _webhook_last["chat_type"] = ev.get("message", {}).get("chat_type", "")
 
     parsed = parse_event(body)
+    _webhook_last["parsed_type"] = parsed.get("type") if parsed else None
+
     if parsed is None:
         return JSONResponse(content={})
 
@@ -349,25 +351,30 @@ async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
         return JSONResponse(content={})
 
     # 同步回复「ping」「测试」，用于快速验证通道是否打通
-    if msg_type == "text" and str(content).strip() in ("ping", "测试", "pong"):
+    if msg_type == "text" and str(content).strip().lower() in ("ping", "测试", "pong"):
         try:
             from app.feishu.bot import reply_message
-            reply_message(chat_id, msg_id, "ReadAfter2.0 已收到～ ✅")
+            reply_message(
+                chat_id, msg_id, "ReadAfter2.0 已收到～ ✅",
+                chat_type=parsed.get("chat_type", ""),
+                open_id=parsed.get("open_id", ""),
+            )
         except Exception as e:
             _webhook_last["reply_error"] = str(e)
         return JSONResponse(content={})
 
+    extra_parsed = parsed.get("extra", "")
+    ct = parsed.get("chat_type", "")
+    oid = parsed.get("open_id", "")
     if msg_type == "url":
-        extra = parsed.get("extra", "")
-        background_tasks.add_task(handle_url, chat_id, msg_id, content, extra)
+        background_tasks.add_task(handle_url, chat_id, msg_id, content, extra_parsed, ct, oid)
     elif msg_type == "urls":
-        extra = parsed.get("extra", "")
         for url in content:
-            background_tasks.add_task(handle_url, chat_id, msg_id, url, extra)
+            background_tasks.add_task(handle_url, chat_id, msg_id, url, extra_parsed, ct, oid)
     elif msg_type == "image":
-        background_tasks.add_task(handle_image, chat_id, msg_id, content)
+        background_tasks.add_task(handle_image, chat_id, msg_id, content, ct, oid)
     elif msg_type == "text":
-        background_tasks.add_task(handle_question, chat_id, msg_id, content)
+        background_tasks.add_task(handle_question, chat_id, msg_id, content, ct, oid)
 
     return JSONResponse(content={})
 
