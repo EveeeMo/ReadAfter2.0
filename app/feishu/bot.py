@@ -101,18 +101,13 @@ def get_image_for_vision(image_key: str) -> str:
 
 
 def reply_message(chat_id: str, msg_id: str, text: str, chat_type: str = "", open_id: str = "") -> None:
-    """回复消息到群聊/私聊。私聊(p2p)需用 open_id，群聊用 chat_id"""
+    """回复消息。单聊和群聊均使用 chat_id（oc_xxx）作为 receive_id"""
     token = get_tenant_access_token()
-    # 私聊必须用 open_id，否则发不出去
-    if chat_type == "p2p" and open_id:
-        rid_type, rid = "open_id", open_id
-    else:
-        rid_type, rid = "chat_id", chat_id
-    if not rid:
-        raise ValueError("缺少 receive_id（chat_id 或 open_id）")
+    if not chat_id:
+        raise ValueError("缺少 chat_id")
     resp = httpx.post(
         "https://open.feishu.cn/open-apis/im/v1/messages",
-        params={"receive_id_type": rid_type, "receive_id": rid},
+        params={"receive_id_type": "chat_id", "receive_id": chat_id},
         json={
             "msg_type": "text",
             "content": json.dumps({"text": text}),
