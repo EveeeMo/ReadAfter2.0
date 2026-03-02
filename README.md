@@ -29,7 +29,6 @@ git branch -M main
 git push -u origin main
 ```
 
-**重要**：仓库需为**公开**；不要将 `.env` 提交到 Git。先在 https://github.com/new 创建空仓库 `ReadAfter2.0`。
 
 ### 2. 配置环境变量
 
