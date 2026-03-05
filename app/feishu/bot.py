@@ -75,18 +75,28 @@ def parse_event(body: dict) -> dict | None:
     return None
 
 
-def get_image_for_vision(image_key: str) -> str:
+def get_image_for_vision(image_key: str, message_id: str = "") -> str:
     """
     通过 image_key 获取图片，返回可用于多模态 API 的 data URL。
-    飞书图片接口返回二进制，转为 base64 供 vision 模型使用。
+    飞书新版需用 /messages/{message_id}/resources/{file_key} 接口。
     """
     token = get_tenant_access_token()
-    resp = httpx.get(
-        f"https://open.feishu.cn/open-apis/im/v1/images/{image_key}",
-        params={"image_type": "message"},
-        headers={"Authorization": f"Bearer {token}"},
-        timeout=15,
-    )
+    # 新版 API：获取消息中的资源文件（image_key 即 file_key）
+    if message_id:
+        resp = httpx.get(
+            f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}/resources/{image_key}",
+            params={"type": "image"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+    else:
+        # 兜底：旧版 /images 接口（可能已弃用）
+        resp = httpx.get(
+            f"https://open.feishu.cn/open-apis/im/v1/images/{image_key}",
+            params={"image_type": "message"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
     resp.raise_for_status()
     content_type = resp.headers.get("content-type", "image/png")
     if "application/json" in content_type:
@@ -101,21 +111,34 @@ def get_image_for_vision(image_key: str) -> str:
 
 
 def reply_message(chat_id: str, msg_id: str, text: str, chat_type: str = "", open_id: str = "") -> None:
-    """回复消息。单聊和群聊均使用 chat_id（oc_xxx）作为 receive_id"""
+    """回复消息。优先使用「回复消息」API（按 message_id 回复），避免可用性限制"""
     token = get_tenant_access_token()
-    if not chat_id:
-        raise ValueError("缺少 chat_id")
-    resp = httpx.post(
-        "https://open.feishu.cn/open-apis/im/v1/messages",
-        params={"receive_id_type": "chat_id", "receive_id": chat_id},
-        json={
-            "msg_type": "text",
-            "content": json.dumps({"text": text}),
-        },
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    payload = {"msg_type": "text", "content": json.dumps({"text": text})}
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    # 优先：回复指定消息（对私聊更友好）
+    if msg_id:
+        resp = httpx.post(
+            f"https://open.feishu.cn/open-apis/im/v1/messages/{msg_id}/reply",
+            json=payload,
+            headers=headers,
+            timeout=10,
+        )
+    else:
+        resp = httpx.post(
+            "https://open.feishu.cn/open-apis/im/v1/messages",
+            params={"receive_id_type": "chat_id", "receive_id": chat_id},
+            json=payload,
+            headers=headers,
+            timeout=10,
+        )
+
+    try:
+        data = resp.json()
+    except Exception:
+        resp.raise_for_status()
+        raise
+    if resp.status_code >= 400:
+        raise RuntimeError(f"HTTP {resp.status_code}: {data}")
     if data.get("code") != 0:
-        raise RuntimeError(f"回复消息失败: {data}")
+        raise RuntimeError(f"回复消息失败 code={data.get('code')} msg={data.get('msg')} {data}")

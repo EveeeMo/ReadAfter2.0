@@ -1,4 +1,5 @@
 """飞书多维表格 API"""
+import re
 import time
 import httpx
 from datetime import datetime
@@ -14,6 +15,11 @@ def _to_timestamp_ms(value: str | int) -> int | None:
     s = str(value).strip()
     if not s:
         return None
+    # 中文格式：2024年1月15日、2026年3月4日 23:29（日后的空格被前段消耗，故时间用 \s* 允许前导空格）
+    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?\s*(?:\s*(\d{1,2})[:：](\d{1,2}))?", s)
+    if m:
+        base = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        s = f"{base} {int(m.group(4)):02d}:{int(m.group(5)):02d}:00" if m.group(4) and m.group(5) else base
     for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M"):
         try:
             dt = datetime.strptime(s[:19], fmt)
@@ -96,6 +102,33 @@ def add_record(
     if data.get("code") != 0:
         raise RuntimeError(f"飞书表格写入失败: {data}")
     return data.get("data", {})
+
+
+def _normalize_url(url: str) -> str:
+    """用于去重比较的 URL 归一化（去掉末尾斜杠）"""
+    u = (url or "").strip()
+    return u.rstrip("/") if u else ""
+
+
+def find_record_by_content_url(content_url: str, limit: int = 150) -> dict | None:
+    """
+    在最近 limit 条记录中查找相同链接是否已存在。
+    返回匹配的记录 dict（含 record_id、fields），若无则返回 None。
+    """
+    if not content_url or not (content_url.startswith("http://") or content_url.startswith("https://")):
+        return None
+    norm = _normalize_url(content_url)
+    url_alt = norm + "/" if not norm.endswith("/") else norm[:-1]  # 兼容有/无末尾斜杠
+
+    records = list_records(limit=limit)
+    for rec in records:
+        fields = rec.get("fields", {})
+        content = fields.get("内容")
+        if isinstance(content, dict) and content.get("link"):
+            existing = _normalize_url(content["link"])
+            if existing == norm or existing == url_alt or existing == content_url or content["link"] == content_url:
+                return rec
+    return None
 
 
 def list_records(limit: int = 50) -> list:

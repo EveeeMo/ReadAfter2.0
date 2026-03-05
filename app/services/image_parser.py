@@ -67,7 +67,8 @@ def _analyze_image(image_url_or_data: str, trace: list | None = None) -> dict:
         "urls_extracted": urls,
     })
 
-    # 第二步：若无链接，提取视频/内容信息
+    # 第二步：若无链接，提取视频/内容信息（用于 find_best_video_url 等）
+    # 发布日期统一从最终链接抓取，不在此提取
     fallback = None
     if not urls:
         try:
@@ -86,7 +87,7 @@ def _analyze_image(image_url_or_data: str, trace: list | None = None) -> dict:
                                         "平台: （从界面判断，如YouTube/B站/小红书）\n"
                                         "标题: （图中视频或内容的真实标题，直接照抄）\n"
                                         "创作者: （图中作者/频道名，无则留空）\n"
-                                        "仅输出这三行，第一行平台，第二行标题，第三行创作者。",
+                                        "仅输出这三行。",
                                     },
                                     img_block,
                                 ],
