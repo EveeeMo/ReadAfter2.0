@@ -12,6 +12,14 @@ from app.handlers.message_handler import handle_url, handle_image, handle_questi
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 部署完成：向配置的群聊发送登场消息
+    try:
+        from app.config import FEISHU_NOTIFY_CHAT_ID
+        if FEISHU_NOTIFY_CHAT_ID:
+            from app.feishu.bot import send_to_chat
+            send_to_chat(FEISHU_NOTIFY_CHAT_ID, "登登！我闪亮登场啦！（又双叕）")
+    except Exception:
+        pass
     yield
     # 可选：关闭时的清理
 
@@ -336,10 +344,14 @@ _ack_msg_ids: dict = {}  # message_id -> timestamp
 
 @app.get("/webhook/feishu/debug")
 def webhook_debug():
-    """查看是否收到飞书回调及后台任务状态"""
+    """查看是否收到飞书回调及后台任务状态、各步骤耗时"""
+    from app.handlers.message_handler import TIMING_BREAKDOWN
     out = dict(_webhook_last) if _webhook_last else {"message": "尚未收到任何飞书回调请求"}
     if _task_status:
         out["task"] = _task_status
+    if TIMING_BREAKDOWN:
+        out["timing_breakdown"] = TIMING_BREAKDOWN
+        out["timing_total"] = round(sum(t.get("elapsed", 0) for t in TIMING_BREAKDOWN), 2)
     return out
 
 

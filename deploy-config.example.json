@@ -6,6 +6,7 @@
     "FEISHU_APP_ID": "你的飞书 App ID",
     "FEISHU_APP_SECRET": "你的飞书 App Secret",
     "FEISHU_BITABLE_APP_TOKEN": "多维表格 app_token",
-    "FEISHU_BITABLE_TABLE_ID": "多维表格 table_id"
+    "FEISHU_BITABLE_TABLE_ID": "多维表格 table_id",
+    "FEISHU_NOTIFY_CHAT_ID": "部署完成发「登场」消息的群聊 chat_id（可选，留空不发）"
   }
 }

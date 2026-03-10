@@ -52,6 +52,35 @@ def main():
             print("  (暂无部署)")
         return
 
+    elif cmd == "watch":
+        # 轮询直到部署成功，并打印登场提示
+        import time
+        print(f"\n⏳ 等待 {SERVICE} 部署完成（每 30 秒检查一次，最长 15 分钟）...\n")
+        max_wait = 15 * 60
+        interval = 30
+        start = time.time()
+        while time.time() - start < max_wait:
+            try:
+                resp = httpx.get(f"{BASE}/v1/deployments/{SERVICE}", headers=headers, timeout=30)
+                if resp.status_code == 200:
+                    d = resp.json()
+                    status = d.get("status", "")
+                    if status == "HEALTHY":
+                        print("\n" + "=" * 40)
+                        print("🎉 登登！我闪亮登场啦！（又双叕）")
+                        print("=" * 40)
+                        url = d.get("public_url", "")
+                        if url:
+                            print(f"\n🌐 访问: {url}")
+                        print()
+                        return
+                    print(f"  当前状态: {status} ...")
+            except Exception as e:
+                print(f"  检查失败: {e}")
+            time.sleep(interval)
+        print("\n⏱ 超时，部署可能仍在进行中。请稍后运行 check_deploy.py 查看状态。")
+        return
+
     elif cmd == "logs":
         log_type = sys.argv[2] if len(sys.argv) > 2 else "runtime"
         if log_type not in ("build", "runtime"):

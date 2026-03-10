@@ -16,6 +16,8 @@ FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
 FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
 FEISHU_BITABLE_APP_TOKEN = os.getenv("FEISHU_BITABLE_APP_TOKEN", "")
 FEISHU_BITABLE_TABLE_ID = os.getenv("FEISHU_BITABLE_TABLE_ID", "")
+# 部署完成后发「登场」消息的群聊/会话 chat_id（留空则不发）
+FEISHU_NOTIFY_CHAT_ID = os.getenv("FEISHU_NOTIFY_CHAT_ID", "")
 
 # AI Builder Space
 AI_BUILDER_TOKEN = os.getenv("AI_BUILDER_TOKEN", "")

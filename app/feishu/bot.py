@@ -142,3 +142,20 @@ def reply_message(chat_id: str, msg_id: str, text: str, chat_type: str = "", ope
         raise RuntimeError(f"HTTP {resp.status_code}: {data}")
     if data.get("code") != 0:
         raise RuntimeError(f"回复消息失败 code={data.get('code')} msg={data.get('msg')} {data}")
+
+
+def send_to_chat(chat_id: str, text: str, receive_id_type: str = "chat_id") -> None:
+    """主动发送消息到指定会话（用于部署完成通知等）"""
+    token = get_tenant_access_token()
+    payload = {"receive_id": chat_id, "msg_type": "text", "content": json.dumps({"text": text})}
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    resp = httpx.post(
+        "https://open.feishu.cn/open-apis/im/v1/messages",
+        params={"receive_id_type": receive_id_type},
+        json=payload,
+        headers=headers,
+        timeout=10,
+    )
+    data = resp.json()
+    if resp.status_code >= 400 or data.get("code") != 0:
+        raise RuntimeError(f"发送消息失败: {data}")

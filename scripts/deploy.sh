@@ -28,4 +28,8 @@ curl -s -X POST "https://space.ai-builders.com/backend/v1/deployments" \
 
 echo ""
 echo "部署已提交，通常需 5–10 分钟完成。"
-echo "查看状态: curl -s -H \"Authorization: Bearer \$AI_BUILDER_TOKEN\" https://space.ai-builders.com/backend/v1/deployments/readafter2"
+echo ""
+echo "等待登场提示： python scripts/check_deploy.py watch"
+echo "  （轮询直到部署成功，会打印「登登！我闪亮登场啦！」）"
+echo ""
+echo "或手动查看状态: curl -s -H \"Authorization: Bearer \$AI_BUILDER_TOKEN\" https://space.ai-builders.com/backend/v1/deployments/readafter2"

@@ -84,6 +84,11 @@ def extract_metadata(url: str, html: str | None = None) -> dict:
     # 微信/小红书：过滤掉验证页等无意义标题
     if title and _is_useless_title(title):
         title = _fallback_title(platform, url)
+    # YouTube/B站：若标题过于泛化（如「youtube链接」），用 oEmbed 等获取真实标题
+    if title and _is_generic_link_title(title, url):
+        better = _fetch_video_title(url)
+        if better:
+            title = better
     title = title or _fallback_title(platform, url)
 
     summary = full_text[:500].strip() + "..." if len(full_text) > 500 else full_text
@@ -210,6 +215,44 @@ def _normalize_date_string(s: str) -> str:
         return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
     s = s[:19].replace("/", "-")
     return s
+
+
+def _is_generic_link_title(title: str, url: str) -> bool:
+    """标题是否过于泛化（如「youtube链接」「YouTube」而非具体内容）"""
+    if not title or len(title) < 4:
+        return False
+    t = title.strip().lower()
+    generic = (
+        "youtube链接", "youtube", "youtu.be", "b站链接", "bilibili链接",
+        "视频链接", "链接", "网页", "分享", "watch?v=",
+    )
+    if any(g in t for g in generic) and len(t) < 30:
+        return True
+    # 标题几乎就是域名
+    domain = urlparse(url).netloc.lower().replace("www.", "")
+    if domain and domain in t and len(t) < 40:
+        return True
+    return False
+
+
+def _fetch_video_title(url: str) -> str | None:
+    """从 oEmbed 等接口获取视频真实标题。支持 YouTube。"""
+    try:
+        u = url.strip()
+        if "youtube.com" in u or "youtu.be" in u:
+            resp = httpx.get(
+                "https://www.youtube.com/oembed",
+                params={"url": u, "format": "json"},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                t = data.get("title", "").strip()
+                if t and len(t) > 3:
+                    return t
+    except Exception:
+        pass
+    return None
 
 
 def _is_hard_to_fetch(url: str) -> bool:
