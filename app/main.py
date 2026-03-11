@@ -37,6 +37,18 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/version")
+def version():
+    """返回当前部署的 git commit，便于确认线上版本"""
+    try:
+        path = os.path.join(os.path.dirname(__file__), "..", "VERSION")
+        with open(path) as f:
+            commit = f.read().strip() or "unknown"
+    except Exception:
+        commit = "unknown"
+    return {"service": "ReadAfter2.0", "commit": commit}
+
+
 # ========== 本地测试用接口（部署前验证） ==========
 
 @app.get("/test/link")
